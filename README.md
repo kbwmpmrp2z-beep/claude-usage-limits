@@ -11,7 +11,7 @@ Mod pro Claude Code: nad polem pro zprávu ukazuje barevný pruh s 5hodinovým a
 V Claude Code (terminál, desktopová aplikace nebo VS Code):
 
 ```
-/plugin install usage-limits --marketplace <owner>/<repo>
+/plugin install usage-limits --marketplace kbwmpmrp2z-beep/claude-usage-limits
 ```
 
 Potvrďte `y` a zvolte user scope. Repozitář je soukromý, takže počítač musí mít přístup ke GitHubu (např. `gh auth login`).

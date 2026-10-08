@@ -44,9 +44,17 @@ export function toWarn(limits: SessionRateLimit[], warned: Set<string>): Session
 
 const warned = new Set<string>()
 
-async function refresh($: EngineInterface, limits?: SessionRateLimit[]) {
+// last reading from an earlier session: a window whose reset has passed starts over at 0 %
+export function revive(stored: unknown, now: number): SessionRateLimit[] {
+  if (!Array.isArray(stored)) return []
+  return windows(stored as SessionRateLimit[]).map(l =>
+    l.resetsAt && Date.parse(l.resetsAt) <= now ? { kind: l.kind, percentUsed: 0 } : l,
+  )
+}
+
+async function refresh($: EngineInterface, limits?: SessionRateLimit[], warn = true) {
   const now = await $.clock.now()
-  for (const l of limits ? toWarn(limits, warned) : []) {
+  for (const l of limits && warn ? toWarn(limits, warned) : []) {
     warned.add(`${l.kind}|${l.resetsAt ?? ''}`)
     const reset = until(l.resetsAt, now)
     $.ui.toast(
@@ -62,13 +70,17 @@ export const register: Register = on => {
     const result = await next(e)
     // the first version wrote to the status line; the band replaces it
     $.ui.status(undefined)
-    await refresh($, (await $.session.usage()).rateLimits)
+    const live = (await $.session.usage()).rateLimits
+    if (windows(live).length > 0) await refresh($, live)
+    // nothing measured yet: show the last known reading until the first response
+    else await refresh($, revive(await $.store.get('last'), await $.clock.now()), false)
     // the reset countdown moves even when no response arrives
     $.clock.every(60_000, () => void refresh($))
     return result
   })
 
   on('session.measure', async ($, e, next) => {
+    if (windows(e.rateLimits).length > 0) await $.store.set('last', e.rateLimits)
     await refresh($, e.rateLimits)
     return next(e)
   })

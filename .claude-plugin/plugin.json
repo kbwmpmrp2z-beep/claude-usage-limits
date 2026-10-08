@@ -1,1 +1,1 @@
-{ "name": "usage-limits", "version": "0.3.0", "description": "Grafický pruh s 5hodinovým a týdenním limitem a časem do resetu", "types": "./types/index.d.ts" }
+{ "name": "usage-limits", "version": "0.4.0", "description": "Grafický pruh s 5hodinovým a týdenním limitem a časem do resetu", "types": "./types/index.d.ts" }

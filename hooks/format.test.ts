@@ -1,5 +1,5 @@
 import { test, expect } from 'claude-code/testing'
-import { bar, tone, toWarn, until, windows } from './register'
+import { bar, revive, tone, toWarn, until, windows } from './register'
 
 const now = Date.parse('2026-10-08T10:00:00Z')
 
@@ -39,4 +39,16 @@ test('warns once per window when it reaches 90 percent', async () => {
   // after the reset the same window can warn again
   const next = [{ kind: 'five_hour', percentUsed: 95, resetsAt: '2026-10-08T17:00:00Z' }]
   expect(toWarn(next, warned).map(l => l.kind)).toEqual(['five_hour'])
+})
+
+test('last reading is shown at start; a passed reset reads 0 %', async () => {
+  const stored = [
+    { kind: 'five_hour', percentUsed: 80, resetsAt: '2026-10-08T09:00:00Z' },
+    { kind: 'seven_day', percentUsed: 42, resetsAt: '2026-10-10T12:00:00Z' },
+  ]
+  expect(revive(stored, now)).toEqual([
+    { kind: 'five_hour', percentUsed: 0 },
+    { kind: 'seven_day', percentUsed: 42, resetsAt: '2026-10-10T12:00:00Z' },
+  ])
+  expect(revive(undefined, now)).toEqual([])
 })

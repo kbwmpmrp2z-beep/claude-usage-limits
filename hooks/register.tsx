@@ -92,11 +92,12 @@ async function toggleRemote($: EngineInterface, current: RemoteState) {
   await syncRemote($)
 }
 
-const RC_LABEL: Record<string, string> = {
-  on: '📡 Remote: zap',
-  off: '📡 Remote: vyp',
-  connecting: '📡 Remote: …',
-  unavailable: '📡 Remote: nedostupné',
+// the state in colour beside the switch; the button names what a press does
+const RC_LOOK: Record<string, { mark: string; color: string; action: string }> = {
+  on: { mark: '● ZAPNUTO', color: 'success', action: 'Vypnout' },
+  off: { mark: '○ VYPNUTO', color: 'inactive', action: 'Zapnout' },
+  connecting: { mark: '◌ připojuji…', color: 'warning', action: 'Zrušit' },
+  unavailable: { mark: '✕ nedostupné', color: 'error', action: 'Zkusit znovu' },
 }
 
 // last reading from an earlier session: a window whose reset has passed starts over at 0 %
@@ -174,14 +175,17 @@ export const register: Register = on => {
             </Box>
           )
         })}
-        {rc !== null ? (
-          <Button
-            key="remote-control"
-            label={RC_LABEL[rc]}
-            variant={rc === 'on' ? 'primary' : undefined}
-            dimColor={rc === 'off' || rc === 'unavailable'}
-            onPress={() => toggleRemote($, rc)}
-          />
+        {rc !== null && RC_LOOK[rc] ? (
+          <Box key="remote-control" flexDirection="row" gap={1}>
+            <Text bold>📡 Remote</Text>
+            <Text bold color={RC_LOOK[rc].color}>{RC_LOOK[rc].mark}</Text>
+            <Button
+              key="remote-toggle"
+              label={RC_LOOK[rc].action}
+              variant={rc === 'off' ? 'primary' : 'secondary'}
+              onPress={() => toggleRemote($, rc)}
+            />
+          </Box>
         ) : null}
       </Box>
     )

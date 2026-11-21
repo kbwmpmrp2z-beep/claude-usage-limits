@@ -1,5 +1,5 @@
 import { test, expect } from 'claude-code/testing'
-import { bar, revive, tone, toWarn, until, windows } from './register'
+import { bar, parseRemote, revive, tone, toWarn, until, windows } from './register'
 
 const now = Date.parse('2026-10-08T10:00:00Z')
 
@@ -51,4 +51,11 @@ test('last reading is shown at start; a passed reset reads 0 %', async () => {
     { kind: 'seven_day', percentUsed: 42, resetsAt: '2026-10-10T12:00:00Z' },
   ])
   expect(revive(undefined, now)).toEqual([])
+})
+
+test('remote control state is read from the app answer', () => {
+  expect(parseRemote('{"sessionId":"x","remoteControlActive":false,"remoteControlState":"off"}')).toBe('off')
+  expect(parseRemote('{"state":"connecting"}')).toBe('connecting')
+  expect(parseRemote('Remote Control is now on.')).toBe('on')
+  expect(parseRemote('nothing here')).toBe(null)
 })

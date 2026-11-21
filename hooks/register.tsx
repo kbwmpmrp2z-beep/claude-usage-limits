@@ -1,7 +1,7 @@
 import { atom, read, update } from 'claude-code'
 import type { Register, EngineInterface, SessionRateLimit } from 'claude-code'
 
-import type { Reading } from '../types'
+import type { Reading, RemoteState } from '../types'
 
 const LABELS: Record<string, string> = { five_hour: '5h', seven_day: 'týden' }
 
@@ -44,6 +44,61 @@ export function toWarn(limits: SessionRateLimit[], warned: Set<string>): Session
 
 const warned = new Set<string>()
 
+// Remote Control: the desktop app's toolbar switch, reached through its own MCP server
+const APP = 'ccd_session_mgmt'
+const remote = atom({ plugin: 'usage-limits', key: 'remote' } as const, null)
+
+const STATES = ['on', 'off', 'connecting', 'unavailable'] as const
+
+// the app answers JSON ({ remoteControlState } or { state }) or a sentence naming the state
+export function parseRemote(text: string): RemoteState {
+  try {
+    const j = JSON.parse(text)
+    const v = j?.remoteControlState ?? j?.state
+    if ((STATES as readonly string[]).includes(v)) return v
+  } catch {}
+  const m = text.match(/\b(on|off|connecting|unavailable)\b/)
+  return m ? (m[1] as RemoteState) : null
+}
+
+function textOf(r: { content: { type: string; text?: string }[] }): string {
+  return r.content.map(c => (c.type === 'text' ? (c.text ?? '') : '')).join('\n')
+}
+
+// null where the app's server is missing (the terminal): the switch is then not drawn
+async function readRemote($: EngineInterface): Promise<RemoteState> {
+  try {
+    const r = await $.mcp.call(APP, 'get_session', { session_id: 'self' })
+    return r.isError ? null : parseRemote(textOf(r))
+  } catch {
+    return null
+  }
+}
+
+async function syncRemote($: EngineInterface) {
+  const state = await readRemote($)
+  await update($, remote, () => state)
+}
+
+async function toggleRemote($: EngineInterface, current: RemoteState) {
+  const enabled = current !== 'on' && current !== 'connecting'
+  await update($, remote, () => 'connecting' as RemoteState)
+  try {
+    const r = await $.mcp.call(APP, 'set_remote_control', { session_id: 'self', enabled })
+    if (r.isError) $.ui.toast(`Remote Control: ${textOf(r).slice(0, 160)}`, { timeoutMs: 8_000 })
+  } catch (err) {
+    $.ui.toast(`Remote Control nejde přepnout: ${String(err).slice(0, 160)}`, { timeoutMs: 8_000 })
+  }
+  await syncRemote($)
+}
+
+const RC_LABEL: Record<string, string> = {
+  on: '📡 Remote: zap',
+  off: '📡 Remote: vyp',
+  connecting: '📡 Remote: …',
+  unavailable: '📡 Remote: nedostupné',
+}
+
 // last reading from an earlier session: a window whose reset has passed starts over at 0 %
 export function revive(stored: unknown, now: number): SessionRateLimit[] {
   if (!Array.isArray(stored)) return []
@@ -76,6 +131,9 @@ export const register: Register = on => {
     else await refresh($, revive(await $.store.get('last'), await $.clock.now()), false)
     // the reset countdown moves even when no response arrives
     $.clock.every(60_000, () => void refresh($))
+    // the toolbar switch can change it too: read it now and then
+    void syncRemote($)
+    $.clock.every(15_000, () => void syncRemote($))
     return result
   })
 
@@ -85,12 +143,18 @@ export const register: Register = on => {
     return next(e)
   })
 
+  on('turn.complete', async ($, e, next) => {
+    void syncRemote($)
+    return next(e)
+  })
+
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
     const r = await read($, reading)
+    const rc = await read($, remote)
     const shown = windows(r.limits)
-    if (e.props.hasSurvey || shown.length === 0) return next(e)
+    if (e.props.hasSurvey || (shown.length === 0 && rc === null)) return next(e)
 
-    const { Box, Text } = $.ui.resolve(e)
+    const { Box, Text, Button } = $.ui.resolve(e)
     const width = e.props.bodyColumns >= 90 ? 16 : 8
 
     return (
@@ -110,6 +174,15 @@ export const register: Register = on => {
             </Box>
           )
         })}
+        {rc !== null ? (
+          <Button
+            key="remote-control"
+            label={RC_LABEL[rc]}
+            variant={rc === 'on' ? 'primary' : undefined}
+            dimColor={rc === 'off' || rc === 'unavailable'}
+            onPress={() => toggleRemote($, rc)}
+          />
+        ) : null}
       </Box>
     )
   })

@@ -22,19 +22,17 @@ function stateOf(on: any, remote: string | null) {
   })
 }
 
-for (const [state, mark, color, action] of [
-  ['on', '● ZAPNUTO', 'success', 'Vypnout'],
-  ['off', '○ VYPNUTO', 'inactive', 'Zapnout'],
+for (const [state, label] of [
+  ['on', '🟢 Remote: ZAPNUTO'],
+  ['off', '⚪ Remote: VYPNUTO'],
 ] as const) {
-  test(`the switch shows ${state} in colour and names the press`, async ($, on) => {
+  test(`the switch shows ${state} by its dot`, async ($, on) => {
     // the engine's state: Remote Control as the app last reported it
     stateOf(on, state)
     const ui = await $.ui.mount({ ...BAND, props })
 
-    const text = await ui.find({ type: 'Text', text: mark })
-    expect(text?.props.color).toBe(color)
     const button = await ui.find({ type: 'Button', key: 'remote-toggle' })
-    expect(button?.props.label).toBe(action)
+    expect(button?.props.label).toBe(label)
     await ui.unmount()
   })
 }

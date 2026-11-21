@@ -75,15 +75,19 @@ async function readRemote($: EngineInterface): Promise<RemoteState> {
   }
 }
 
+// plain writes, not update(): a compare-and-set that loses to the 15 s sync must not swallow a press
+const REMOTE_REF = { plugin: 'usage-limits', key: 'remote' } as const
+
 async function syncRemote($: EngineInterface) {
-  const state = await readRemote($)
-  await update($, remote, () => state)
+  await $.state.set(REMOTE_REF, await readRemote($))
 }
 
-async function toggleRemote($: EngineInterface, current: RemoteState) {
-  const enabled = current !== 'on' && current !== 'connecting'
-  await update($, remote, () => 'connecting' as RemoteState)
+async function toggleRemote($: EngineInterface) {
   try {
+    // the state as the app has it now, not as the drawing last saw it
+    const before = await readRemote($)
+    const enabled = before !== 'on' && before !== 'connecting'
+    await $.state.set(REMOTE_REF, 'connecting')
     const r = await $.mcp.call(APP, 'set_remote_control', { session_id: 'self', enabled })
     if (r.isError) $.ui.toast(`Remote Control: ${textOf(r).slice(0, 160)}`, { timeoutMs: 8_000 })
   } catch (err) {
@@ -92,12 +96,13 @@ async function toggleRemote($: EngineInterface, current: RemoteState) {
   await syncRemote($)
 }
 
-// the state in colour beside the switch; the button names what a press does
-const RC_LOOK: Record<string, { mark: string; color: string; action: string }> = {
-  on: { mark: '● ZAPNUTO', color: 'success', action: 'Vypnout' },
-  off: { mark: '○ VYPNUTO', color: 'inactive', action: 'Zapnout' },
-  connecting: { mark: '◌ připojuji…', color: 'warning', action: 'Zrušit' },
-  unavailable: { mark: '✕ nedostupné', color: 'error', action: 'Zkusit znovu' },
+// the switch: one button whose label carries the state, coloured by its dot
+// (a desktop button takes plain text only); a press anywhere on it flips it
+const RC_LABEL: Record<string, string> = {
+  on: '🟢 Remote: ZAPNUTO',
+  off: '⚪ Remote: VYPNUTO',
+  connecting: '🟡 Remote: připojuji…',
+  unavailable: '🔴 Remote: nedostupné',
 }
 
 // last reading from an earlier session: a window whose reset has passed starts over at 0 %
@@ -159,7 +164,15 @@ export const register: Register = on => {
     const width = e.props.bodyColumns >= 90 ? 16 : 8
 
     return (
-      <Box flexDirection="row" gap={4}>
+      <Box flexDirection="row" flexWrap="wrap" columnGap={4}>
+        {rc !== null && RC_LABEL[rc] ? (
+          <Button
+            key="remote-toggle"
+            label={RC_LABEL[rc]}
+            variant={rc === 'on' ? 'primary' : undefined}
+            onPress={() => void toggleRemote($)}
+          />
+        ) : null}
         {shown.map(l => {
           const [full, empty] = bar(l.percentUsed, width)
           const reset = until(l.resetsAt, r.now)
@@ -175,18 +188,6 @@ export const register: Register = on => {
             </Box>
           )
         })}
-        {rc !== null && RC_LOOK[rc] ? (
-          <Box key="remote-control" flexDirection="row" gap={1}>
-            <Text bold>📡 Remote</Text>
-            <Text bold color={RC_LOOK[rc].color}>{RC_LOOK[rc].mark}</Text>
-            <Button
-              key="remote-toggle"
-              label={RC_LOOK[rc].action}
-              variant={rc === 'off' ? 'primary' : 'secondary'}
-              onPress={() => toggleRemote($, rc)}
-            />
-          </Box>
-        ) : null}
       </Box>
     )
   })

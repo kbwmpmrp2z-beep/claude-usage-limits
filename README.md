@@ -1,6 +1,6 @@
 # usage-limits
 
-Mod pro Claude Code: nad polem pro zprávu ukazuje barevný pruh s 5hodinovým a týdenním limitem předplatného a časem do resetu. Když limit dosáhne 90 %, zobrazí upozornění. V desktopové aplikaci má pruh navíc tlačítko **📡 Remote**, které zapíná a vypíná Remote Control aktuální session.
+Mod pro Claude Code: nad polem pro zprávu ukazuje barevný pruh s 5hodinovým a týdenním limitem předplatného a časem do resetu. Když limit dosáhne 90 %, zobrazí upozornění. V desktopové aplikaci začíná pruh přepínačem **🟢 Remote: ZAPNUTO / ⚪ Remote: VYPNUTO**; klik na něj zapne či vypne Remote Control aktuální session.
 
 ```
 5h ████░░░░░░░░░░░░ 23% ↻ 2h 15m    týden ███████░░░░░░░░░ 41% ↻ 2d 3h
